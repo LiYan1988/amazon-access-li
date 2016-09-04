@@ -1,0 +1,8 @@
+1. use pandas for groupping multiple columns:
+	https://www.kaggle.com/c/amazon-employee-access-challenge/forums/t/4838/python-code-to-achieve-0-90-auc-with-logistic-regression/27689#post27689
+2. use high frequency combinations, lump low frequent items
+	https://www.kaggle.com/c/amazon-employee-access-challenge/forums/t/4838/python-code-to-achieve-0-90-auc-with-logistic-regression/27359#post27359
+3. people's codes
+	https://www.kaggle.com/c/amazon-employee-access-challenge/forums/t/5258/how-i-modified-miroslaw-s-code
+4. winning codes
+	https://www.kaggle.com/c/amazon-employee-access-challenge/forums/t/5283/winning-solution-code-and-methodology
