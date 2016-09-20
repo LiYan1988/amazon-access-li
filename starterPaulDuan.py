@@ -5,6 +5,20 @@ Created on Sat Sep  3 10:39:00 2016
 @author: MULTIPOS
 
 Follow Paul Duan's starter code.
+
+Ben's idea: 
+1. frequency of each base feature value (e.g., how many times a manager/role 
+    title occurs in the data set)
+2. frequency of applying for the resource within the base feature value group
+    (e.g., how often is the resource being aplied among all the applications 
+    under the same manager/role department)
+3. number of resources being applied under each manager/role department
+
+Paul's idea:
+1. cross tables of each base feature pair
+2. some simple algorithmic calculation between the cross table features (e.g.,
+    division, multiplication, square, cubic, log, normalization...)
+
 """
 
 import pandas as pd
@@ -13,7 +27,7 @@ import itertools
 from scipy import sparse
 import copy
 
-import xgboost as xgb
+#import xgboost as xgb
 from sklearn import (metrics, cross_validation, linear_model, preprocessing)
 from sklearn import feature_selection
 from sklearn import datasets
@@ -105,7 +119,7 @@ def combine_data(X, columns, degree=2, cut_off=0.5):
     return X
     
 def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
-               cut_off=0.5, **kwargs):
+               cut_off=0.5, clf=None):
     """Another data processing
     """
     X = pd.concat([x_train, x_test])
@@ -119,14 +133,13 @@ def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
             X = combine_data(X, columns, d, cut_off)            
             
     # feature selection, if n_features==0 skip feature selection
-    if len(kwargs):
-        clf = kwargs['clf']
+    if clf:
         xt = X[:x_train.shape[0]]
         cols_good = forward_feature_selection(clf, xt, y_train)
     else:
         cols_good = X.columns
-    x_train, x_test = one_hot(X, x_train, x_test, cols_good)
         
+    x_train, x_test = one_hot(X, x_train, x_test, cols_good)        
 
     return x_train, x_test, cols_good
     
@@ -206,23 +219,74 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree,
         Y.append(y_pred)
     Y = np.array(Y).T
     return Y
+    
+def create_feat_ben(Xtrain, Xtest):
+    """Create new features using Ben's method
+    """
+    Xall = pd.concat([Xtrain, Xtest])
+    columns = list(Xall.columns)
+
+    # frequency/count of each column
+    for col in columns:
+        grouped = Xall.groupby(col, sort=False).size().\
+            to_frame('cnt'+col).apply(np.log)
+        Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, 
+                        how='left')
+    
+    # resource percentage in the manager/role/...
+    for col in columns:
+        if col=='RESOURCE':
+            continue
+        grouped = Xall.groupby([col, 'RESOURCE'], sort=False).size()
+        grouped = grouped.div(grouped.sum(level=0), level=0).reset_index()
+        grpcol = grouped.columns.values
+        grpcol[2] = 'respct'+col
+        grouped.columns = grpcol
+        Xall = pd.merge(Xall, grouped, left_on=[col, 'RESOURCE'], 
+                        right_on=[col, 'RESOURCE'], how='left')
+    
+    # number of resources per manager/role/...
+    for col in columns:
+        if col=='RESOURCE':
+            continue
+        grouped = Xall.groupby(col, sort=False)['RESOURCE']\
+            .agg(lambda x:len(x.unique())).to_frame('resper'+col)
+        Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, 
+                        how='left')
+                        
+    Xall.drop(columns, axis=1, inplace=True)
+    Xtrain = Xall[:Xtrain.shape[0]]
+    Xtest = Xall[Xtrain.shape[0]:]
+    
+    return Xtrain, Xtest
 
 if __name__ == '__main__':
-#%% load data
+#%% average on multiple models
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+#    cols_drop = ['ROLE_CODE']
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
+#    Y = average_models(x_train, x_test, y_train, cols_drop, [2,3,4], 3, 
+#                       0, model_logit, model_logit, 20)
+#    y_pred = np.mean(Y,1)
+#    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
+                   
+#%% feature combination
     x_train, y_train, x_test, id_test = load_data()
     cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-#    cols_drop = ['ROLE_CODE']
     model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
-    Y = average_models(x_train, x_test, y_train, cols_drop, [2,3,4], 3, 
-                       0, model_logit, model_logit, 20)
-    y_pred = np.mean(Y,1)
-    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
-#    x_train, x_test, cols_good = \
-#                   group_data(x_train, x_test, y_train, cols_drop=cols_drop, 
-#                   max_degree=[2,3], cut_off=1, n_features=30, random_state=0,
-#                   clf=model_logit)
-                   
-#%% logistic regression    
+    x_trainh, x_testh, _ = group_data(x_train, x_test, y_train, 
+                    cols_drop=cols_drop, max_degree=[2,3], cut_off=2)
+    x_trainb, x_testb = create_feat_ben(x_train, x_test)
+    x_train = sparse.hstack((x_trainh, x_trainb.as_matrix())).tocsr()
+    x_test = sparse.hstack((x_testh, x_testb.as_matrix())).tocsr()
+    cv_score = cross_validation.cross_val_score(model_logit, x_train, y_train, 
+                    cv=10, verbose=3, scoring='roc_auc')
+    model_logit.fit(x_train, y_train)
+    y_pred = model_logit.predict_proba(x_test)[:,1]
+    save_submission(y_pred, 'submissionPB.csv')
+    
+#%% logistic regression
 #    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
 #    scores_cv = cross_validation.cross_val_score(model_logit,
 #                                                  x_train, y_train, cv=10, 

@@ -7,6 +7,8 @@ Created on Tue Sep 20 09:41:38 2016
 
 import pandas as pd
 import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.cross_validation import cross_val_score
 
 Xtrain = pd.read_csv('train.csv')
 Xtest = pd.read_csv('test.csv')
@@ -46,3 +48,11 @@ for col in columns:
     grouped = Xall.groupby(col, sort=False)['RESOURCE']\
         .agg(lambda x:len(x.unique())).to_frame('resper'+col)
     Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, how='left')
+
+Xall.drop(columns, axis=1, inplace=True)
+Xtrain = Xall[:Xtrain.shape[0]]
+Xtest = Xall[Xtrain.shape[0]:]
+
+clf = LogisticRegression(C=2, random_state=0)
+cv_score = cross_val_score(clf, Xtrain, ytrain, cv=10, verbose=3, 
+                           scoring='roc_auc')
