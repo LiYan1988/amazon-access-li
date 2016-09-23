@@ -1,0 +1,21 @@
+Ben's idea: 
+1. frequency of each base feature value (e.g., how many times a 
+	manager/role title occurs in the data set)
+2. frequency of applying for the resource within the base feature 
+	value group (e.g., how often is the resource being aplied among 
+	all the applications under the same manager/role department)
+3. number of resources being applied under each manager/role 
+	department
+4. relabel all the feature values, bin count, consolidate rare 
+	features (counts<=1 and counts==2) into seperate features, and 
+	relabel again
+
+
+Paul's idea:
+1. cross tables of each base feature pair
+2. some simple algorithmic calculation between the cross table 
+	features (e.g., division, multiplication, square, cubic, log, 
+	normalization...)
+3. self-made simple model that minimizes AUC directly, and 
+	simple linear regression model with nonnegative coefficients.
+4. 

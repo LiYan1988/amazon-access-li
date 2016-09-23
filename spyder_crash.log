@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/li/anaconda3/envs/py27/lib/python2.7/site-packages/spyderlib/spyder.py", line 2331, in main
+    mainwindow = run_spyder(app, options, args)
+  File "/home/li/anaconda3/envs/py27/lib/python2.7/site-packages/spyderlib/spyder.py", line 2215, in run_spyder
+    main.setup()
+  File "/home/li/anaconda3/envs/py27/lib/python2.7/site-packages/spyderlib/spyder.py", line 792, in setup
+    from spyderlib.plugins.explorer import Explorer
+  File "/home/li/anaconda3/envs/py27/lib/python2.7/site-packages/spyderlib/plugins/explorer.py", line 7, in <module>
+    """Files and Directories Explorer Plugin"""
+KeyboardInterrupt

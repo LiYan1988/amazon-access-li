@@ -29,8 +29,8 @@ import copy
 
 #import xgboost as xgb
 from sklearn import (metrics, cross_validation, linear_model, preprocessing)
-from sklearn import feature_selection
-from sklearn import datasets
+from sklearn import (feature_selection, datasets, naive_bayes, grid_search)
+from sklearn import ensemble
 
 
 def load_data():
@@ -51,20 +51,20 @@ def save_submission(y_pred, file_name):
     y_pred.columns = ['ACTION']
     y_pred.to_csv(file_name)
     
-def xgb_data(x_train, y_train, x_test):
-    """Preprocessing for xgboost
-    """
-    # one hot encoder
-    encoder = preprocessing.OneHotEncoder()
-    X = np.vstack((x_train, x_test))
-    X = encoder.fit_transform(X)
-    xgbmat = xgb.DMatrix(X)
-    train_index = np.arange(len(x_train.index))
-    test_index = np.arange(len(x_train.index), xgbmat.num_row())
-    xgbmat_train = xgbmat.slice(train_index)
-    xgbmat_test = xgbmat.slice(test_index)
-    xgbmat_train.set_label(y_train)
-    return xgbmat_train, xgbmat_test
+#def xgb_data(x_train, y_train, x_test):
+#    """Preprocessing for xgboost
+#    """
+#    # one hot encoder
+#    encoder = preprocessing.OneHotEncoder()
+#    X = np.vstack((x_train, x_test))
+#    X = encoder.fit_transform(X)
+#    xgbmat = xgb.DMatrix(X)
+#    train_index = np.arange(len(x_train.index))
+#    test_index = np.arange(len(x_train.index), xgbmat.num_row())
+#    xgbmat_train = xgbmat.slice(train_index)
+#    xgbmat_test = xgbmat.slice(test_index)
+#    xgbmat_train.set_label(y_train)
+#    return xgbmat_train, xgbmat_test
     
     
 def process_data(x_train, x_test):
@@ -114,17 +114,24 @@ def combine_data(X, columns, degree=2, cut_off=0.5):
         low_frequent_values = frequency[frequency<=threshold].index.tolist()
         # discard low frequency items
         X.ix[X[col_name].isin(low_frequent_values),col_name] = \
-            low_frequent_values[0]
+            low_frequent_values[0]    
+        relabeler = preprocessing.LabelEncoder()
+        X[col_name] = relabeler.fit_transform(X[col_name])
     
     return X
     
 def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
-               cut_off=0.5, clf=None):
+               cut_off=0.5, clf=None, n_features=5):
     """Another data processing
     """
     X = pd.concat([x_train, x_test])
     X.drop(cols_drop, 1, inplace=True)
     columns = X.columns
+    # relabel all features
+    for i, c in enumerate(columns):
+        relabeler = preprocessing.LabelEncoder()
+        X[c] = relabeler.fit_transform(X[c])
+    
     if type(max_degree)==int:
         for d in range(2, max_degree+1):
             X = combine_data(X, columns, d, cut_off)
@@ -135,7 +142,7 @@ def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
     # feature selection, if n_features==0 skip feature selection
     if clf:
         xt = X[:x_train.shape[0]]
-        cols_good = forward_feature_selection(clf, xt, y_train)
+        cols_good = forward_feature_selection(clf, xt, y_train, n_features)
     else:
         cols_good = X.columns
         
@@ -143,34 +150,53 @@ def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
 
     return x_train, x_test, cols_good
     
-def forward_feature_selection(clf, x, y):
+def forward_feature_selection(clf, x, y, n_features):
     """
     According to Miroslaw's idea
     x, y are pandas dataframes
+    n_features: maximum number of features selected
     """
     cols = list(x.columns)
     cols = list(np.random.permutation(cols))
     cols_good = []
     cols_remain = cols
-    x_ = []
+    x_selected_ = []
     score_hist = []
+    score_max = 0
+    idx_max = 0
+    cols_hist = []
     
-    for i, col in enumerate(cols):
-        encoder = preprocessing.OneHotEncoder()
-        xtmp = np.absolute(x.ix[:,col]).reshape((x.shape[0],1))
-        x_new = encoder.fit_transform(xtmp)
-        x_.append(x_new)
-        x_features = sparse.hstack([i for i in x_]).tocsr()
-        scores_cv = cross_validation.cross_val_score(clf, x_features, y, cv=10, 
-                                                     scoring='roc_auc')
-        score_ = np.median(scores_cv)
+    for i in range(len(cols)):
+        score_ = []
+        for col in cols_remain:
+            x_ = x_selected_[:]
+            encoder = preprocessing.OneHotEncoder()
+            xtmp = np.absolute(x[col]).reshape((x.shape[0],1))
+            x_new = encoder.fit_transform(xtmp)
+            x_.append(x_new)
+            x_features = sparse.hstack([i for i in x_]).tocsr()
+            scores_cv = cross_validation.cross_val_score(clf, x_features, 
+                y, cv=5, scoring='roc_auc')
+            score_.append((np.median(scores_cv), col, x_new))
 #        print(col,'score:',score_)
-        if (len(score_hist)==0 or score_>score_hist[-1]):
-            score_hist.append(score_)
+        score_hist.append(sorted(score_)[-1])
+        if (len(score_hist)>1 and score_hist[-1][0]<score_max
+            and len(cols_good)>=n_features):
+            break
+        else:
+            col = score_hist[-1][1]
+            x_new = score_hist[-1][2]
             cols_good.append(col)
             cols_remain.remove(col)
+            x_selected_.append(x_new)
+            score_tmp = score_hist[-1][0] if score_hist[-1][0]>score_max \
+                else score_max
+            idx_max = len(score_hist)-1 if score_hist[-1][0]>score_max \
+                else idx_max
+            score_max = score_tmp
+            cols_hist.append(cols_good[:])
     
-    return cols_good
+    return cols_hist[idx_max]
     
 def one_hot(X, x_train, x_test, cols_good):
     """Encode training and testing data
@@ -259,9 +285,42 @@ def create_feat_ben(Xtrain, Xtest):
     Xtest = Xall[Xtrain.shape[0]:]
     
     return Xtrain, Xtest
+    
+def cv_predict_proba(clf, X, y, cv=3, random_state=0):
+    kf = cross_validation.KFold(X.shape[0], n_folds=cv, shuffle=True, 
+        random_state=random_state)
+    ypred = np.zeros((X.shape[0], len(np.unique(y))))
+    for train_index, test_index in kf:
+        clf.fit(X[train_index,:], y[train_index])
+        ypred[test_index] = clf.predict_proba(X[test_index])
+        
+    return ypred
+    
+def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
+    xpred = np.zeros((Xtrain.shape[0], len(models)*len(np.unique(ytrain))))
+    for i, model in enumerate(models):
+        cols = list(range(i*len(np.unique(ytrain)), 
+                          (i+1)*len(np.unique(ytrain))))
+        xpred[:, cols] = cv_predict_proba(model, Xtrain, ytrain, 
+            cv, random_state)
+        model.fit(Xtrain, ytrain)
+        models[i] = model
+    lg_ = linear_model.LinearRegression(fit_intercept=False, normalize=False,
+        copy_X=True)
+    lg_.fit(xpred, ytrain)
+    
+    xpred0 = np.zeros((Xtest.shape[0], len(models)*len(np.unique(ytrain))))
+    for i, model in enumerate(models):
+        cols = list(range(i*len(np.unique(ytrain)), 
+                          (i+1)*len(np.unique(ytrain))))
+        xpred0[:, cols] = model.predict_proba(Xtest.toarray())
+    ypred = lg_.predict(xpred0)
+    
+    return ypred
+        
 
 if __name__ == '__main__':
-#%% average on multiple models
+#%% average multiple logistic regressino models
 #    x_train, y_train, x_test, id_test = load_data()
 #    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
 #    cols_drop = ['ROLE_CODE']
@@ -271,32 +330,63 @@ if __name__ == '__main__':
 #    y_pred = np.mean(Y,1)
 #    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
                    
-#%% feature combination
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
-    x_trainh, x_testh, _ = group_data(x_train, x_test, y_train, 
-                    cols_drop=cols_drop, max_degree=[2,3], cut_off=2)
-    x_trainb, x_testb = create_feat_ben(x_train, x_test)
-    x_train = sparse.hstack((x_trainh, x_trainb.as_matrix())).tocsr()
-    x_test = sparse.hstack((x_testh, x_testb.as_matrix())).tocsr()
-    cv_score = cross_validation.cross_val_score(model_logit, x_train, y_train, 
-                    cv=10, verbose=3, scoring='roc_auc')
-    model_logit.fit(x_train, y_train)
-    y_pred = model_logit.predict_proba(x_test)[:,1]
-    save_submission(y_pred, 'submissionPB.csv')
-    
-#%% logistic regression
+#%% feature combination and logistic regression: auc = 0.9
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
 #    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
-#    scores_cv = cross_validation.cross_val_score(model_logit,
-#                                                  x_train, y_train, cv=10, 
-#                                                  verbose=1, 
-#                                                  scoring='roc_auc')
-#    print(np.mean(scores_cv))
-#    print(np.std(scores_cv))
-#    model_logit.fit(x_train, y_train)
-#    y_pred = model_logit.predict_proba(x_test)[:,1]
-#    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
+#    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
+#    x_trainh, x_testh, _ = group_data(x_train, x_test, y_train, 
+#        cols_drop=cols_drop, max_degree=[2, 3], cut_off=0.4, 
+#        clf=None, n_features=15)
+#    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
+#        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+#    print np.mean(cv_score)
+#    model_logit.fit(x_trainh, y_train)
+#    y_pred = model_logit.predict_proba(x_testh)[:,1]
+#    save_submission(y_pred, 'submissionPB.csv')
+    
+#%% naive bayes: auc = 0.5
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE']
+#    x_train.drop(cols_drop, axis=1, inplace=True)
+#    x_test.drop(cols_drop, axis=1, inplace=True)
+#    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
+##    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
+#    x_trainb, x_testb = create_feat_ben(x_train, x_test)
+#    x_train = sparse.hstack((x_train, x_trainb.as_matrix())).tocsr()
+#    x_test = sparse.hstack((x_test, x_testb.as_matrix())).tocsr()
+##    cv_score = cross_validation.cross_val_score(model_nb, x_train, y_train,
+##        cv=5, scoring='roc_auc', n_jobs=-1)
+#    params = {'alpha':np.arange(0.01, 0.1, 0.01)}
+#    clf = grid_search.GridSearchCV(model_nb, params, scoring='roc_auc', cv=5, 
+#        verbose=3)
+#    clf.fit(x_train, y_train)
+    
+#%% model ensemble, auc = 0.9029 (cv=2)
+    x_train, y_train, x_test, id_test = load_data()
+    cols_drop = ['ROLE_CODE']
+    x_train.drop(cols_drop, axis=1, inplace=True)
+    x_test.drop(cols_drop, axis=1, inplace=True)
+    x_trainb, x_testb = create_feat_ben(x_train, x_test)
+    x_train = sparse.hstack((x_train, x_trainb.as_matrix())).toarray()
+    x_test = sparse.hstack((x_test, x_testb.as_matrix())).tocsr()
+    
+
+    SEED = 0
+    models = []
+    models.append(ensemble.RandomForestClassifier(n_estimators=2000, 
+        max_features='sqrt', max_depth=None, min_samples_split=9, 
+        random_state=SEED, verbose=10))#8803
+    models.append(ensemble.ExtraTreesClassifier(n_estimators=2000, 
+        max_features='sqrt', max_depth=None, min_samples_split=8, 
+        random_state=SEED, verbose=10)) #8903
+    models.append(ensemble.GradientBoostingClassifier(n_estimators=50, 
+        learning_rate=0.20, max_depth=20, min_samples_split=9, 
+        random_state=SEED, verbose=10))  #8749
+    
+    y_pred = model_ensemble(models, x_train, y_train, x_test, 
+        cv=2, random_state=0)
+    save_submission(y_pred, 'submissionEnsemble.csv')
     
 #%% xgboost    
 #    xgbmat_train, xgbmat_test = xgb_data(x_train, y_train, x_test)
