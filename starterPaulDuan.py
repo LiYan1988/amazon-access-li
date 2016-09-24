@@ -308,6 +308,7 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
     lg_ = linear_model.LinearRegression(fit_intercept=False, normalize=False,
         copy_X=True)
     lg_.fit(xpred, ytrain)
+    auc_score = metrics.roc_auc_score(y_train, lg_.predict(xpred))
     
     xpred0 = np.zeros((Xtest.shape[0], len(models)*len(np.unique(ytrain))))
     for i, model in enumerate(models):
@@ -316,7 +317,7 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
         xpred0[:, cols] = model.predict_proba(Xtest.toarray())
     ypred = lg_.predict(xpred0)
     
-    return ypred
+    return ypred, auc_score
         
 
 if __name__ == '__main__':
@@ -376,17 +377,18 @@ if __name__ == '__main__':
     models = []
     models.append(ensemble.RandomForestClassifier(n_estimators=2000, 
         max_features='sqrt', max_depth=None, min_samples_split=9, 
-        random_state=SEED, verbose=10))#8803
+        random_state=SEED, verbose=10, n_jobs=-1))#8803
     models.append(ensemble.ExtraTreesClassifier(n_estimators=2000, 
         max_features='sqrt', max_depth=None, min_samples_split=8, 
-        random_state=SEED, verbose=10)) #8903
+        random_state=SEED, verbose=10, n_jobs=-1)) #8903
     models.append(ensemble.GradientBoostingClassifier(n_estimators=50, 
         learning_rate=0.20, max_depth=20, min_samples_split=9, 
         random_state=SEED, verbose=10))  #8749
     
-    y_pred = model_ensemble(models, x_train, y_train, x_test, 
+    y_pred, auc_score = model_ensemble(models, x_train, y_train, x_test, 
         cv=2, random_state=0)
     save_submission(y_pred, 'submissionEnsemble.csv')
+    print auc_score
     
 #%% xgboost    
 #    xgbmat_train, xgbmat_test = xgb_data(x_train, y_train, x_test)
