@@ -1,0 +1,4 @@
+alg,basic_b,basic_f,effects_f,greedy2_f,greedy2_sfl,greedy3_sf,greedy_c,greedy_f,greedy_sbl,greedy_sfl,tuples_cf,tuples_f,tuples_fd,tuples_sf
+GBC,,1.0,,,,,1.0,,,,1.0,1.0,,
+LR,,,,,1.0,1.0,,,1.0,1.0,,,,1.0
+RFC,1.0,,1.0,1.0,,,,1.0,,,,1.0,1.0,

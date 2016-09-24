@@ -40,6 +40,17 @@ def load_data():
     y_train = x_train.pop('ACTION')
     x_test = pd.read_csv('test.csv')
     id_test = x_test.pop('id')
+
+    X = pd.concat([x_train, x_test])
+    columns = X.columns
+    # relabel all features
+    for i, c in enumerate(columns):
+        relabeler = preprocessing.LabelEncoder()
+        X[c] = relabeler.fit_transform(X[c])
+        
+    x_train = X[:x_train.shape[0]]
+    x_test = X[x_train.shape[0]:]
+    
     return x_train, y_train, x_test, id_test
 
 def save_submission(y_pred, file_name):
@@ -140,7 +151,7 @@ def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
             X = combine_data(X, columns, d, cut_off)            
             
     # feature selection, if n_features==0 skip feature selection
-    if clf:
+    if (clf is not None):
         xt = X[:x_train.shape[0]]
         cols_good = forward_feature_selection(clf, xt, y_train, n_features)
     else:
@@ -166,7 +177,7 @@ def forward_feature_selection(clf, x, y, n_features):
     idx_max = 0
     cols_hist = []
     
-    for i in range(len(cols)):
+    for j in range(len(cols)):
         score_ = []
         for col in cols_remain:
             x_ = x_selected_[:]
@@ -176,9 +187,9 @@ def forward_feature_selection(clf, x, y, n_features):
             x_.append(x_new)
             x_features = sparse.hstack([i for i in x_]).tocsr()
             scores_cv = cross_validation.cross_val_score(clf, x_features, 
-                y, cv=5, scoring='roc_auc')
+                y, cv=5, scoring='roc_auc', n_jobs=-1)
             score_.append((np.median(scores_cv), col, x_new))
-#        print(col,'score:',score_)
+#        print(col,'score:',np.median(scores_cv))
         score_hist.append(sorted(score_)[-1])
         if (len(score_hist)>1 and score_hist[-1][0]<score_max
             and len(cols_good)>=n_features):
@@ -195,6 +206,8 @@ def forward_feature_selection(clf, x, y, n_features):
                 else idx_max
             score_max = score_tmp
             cols_hist.append(cols_good[:])
+            print 'Iteration {}, column {} is selected, score: {}'.format(
+                j, col, score_hist[-1][0])
     
     return cols_hist[idx_max]
     
@@ -233,10 +246,8 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree,
         x_train0, x_test0, cols_good = \
             group_data(x_train, x_test, y_train, cols_drop=cols_drop, 
                        max_degree=max_degree, cut_off=1, clf=clf_select0)
-        scores_cv = cross_validation.cross_val_score(clf_train,
-                                                      x_train0, y_train, cv=10, 
-                                                      verbose=1, 
-                                                      scoring='roc_auc')
+        scores_cv = cross_validation.cross_val_score(clf_train, x_train0, 
+            y_train, cv=10, verbose=1, scoring='roc_auc')
         
         print('median:',np.median(scores_cv))
         print('std:',np.std(scores_cv))
@@ -246,18 +257,20 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree,
     Y = np.array(Y).T
     return Y
     
-def create_feat_ben(Xtrain, Xtest):
+def create_feat_ben(Xtrain, Xtest, keep_origin=False):
     """Create new features using Ben's method
     """
     Xall = pd.concat([Xtrain, Xtest])
     columns = list(Xall.columns)
-
-    # frequency/count of each column
+    N = Xall.shape[0]
+    
+    # log count and frequency of each column
     for col in columns:
-        grouped = Xall.groupby(col, sort=False).size().\
-            to_frame('cnt'+col).apply(np.log)
-        Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, 
-                        how='left')
+        grouped = Xall.groupby(col, sort=False).size()
+        Xall = pd.merge(Xall, grouped.to_frame('logcnt'+col).apply(np.log), 
+            left_on=col, right_index=True, how='left')
+        Xall = pd.merge(Xall, grouped.to_frame('lincnt'+col).apply(lambda x: 
+            x/N), left_on=col, right_index=True, how='left')
     
     # resource percentage in the manager/role/...
     for col in columns:
@@ -280,7 +293,17 @@ def create_feat_ben(Xtrain, Xtest):
         Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, 
                         how='left')
                         
-    Xall.drop(columns, axis=1, inplace=True)
+    # cross tabulate frequencies
+    N = Xall.shape[0]
+    for cols in itertools.combinations(columns, 2):
+        grouped = Xall.groupby(by=cols, sort=False).size().apply(lambda x: 
+            10.*x/N)
+        grouped = grouped.to_frame('crstab'+'+'.join(cols))
+        Xall = pd.merge(Xall, grouped, left_on=cols, right_index=True, 
+            how='left')
+                        
+    if not keep_origin:
+        Xall.drop(columns, axis=1, inplace=True)
     Xtrain = Xall[:Xtrain.shape[0]]
     Xtest = Xall[Xtrain.shape[0]:]
     
@@ -308,7 +331,6 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
     lg_ = linear_model.LinearRegression(fit_intercept=False, normalize=False,
         copy_X=True)
     lg_.fit(xpred, ytrain)
-    auc_score = metrics.roc_auc_score(y_train, lg_.predict(xpred))
     
     xpred0 = np.zeros((Xtest.shape[0], len(models)*len(np.unique(ytrain))))
     for i, model in enumerate(models):
@@ -317,7 +339,7 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
         xpred0[:, cols] = model.predict_proba(Xtest.toarray())
     ypred = lg_.predict(xpred0)
     
-    return ypred, auc_score
+    return ypred
         
 
 if __name__ == '__main__':
@@ -330,15 +352,19 @@ if __name__ == '__main__':
 #                       0, model_logit, model_logit, 20)
 #    y_pred = np.mean(Y,1)
 #    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
-                   
-#%% feature combination and logistic regression: auc = 0.9
+
+#%% feature combination and logistic regression: auc = 0.908
 #    x_train, y_train, x_test, id_test = load_data()
 #    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
-#    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
-#    x_trainh, x_testh, _ = group_data(x_train, x_test, y_train, 
-#        cols_drop=cols_drop, max_degree=[2, 3], cut_off=0.4, 
-#        clf=None, n_features=15)
+#
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag')
+#    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag', max_iter=15)
+#
+#    x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
+#        cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
+#        clf=model_logit2, n_features=40)
 #    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
 #        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
 #    print np.mean(cv_score)
@@ -356,40 +382,38 @@ if __name__ == '__main__':
 #    x_trainb, x_testb = create_feat_ben(x_train, x_test)
 #    x_train = sparse.hstack((x_train, x_trainb.as_matrix())).tocsr()
 #    x_test = sparse.hstack((x_test, x_testb.as_matrix())).tocsr()
-##    cv_score = cross_validation.cross_val_score(model_nb, x_train, y_train,
-##        cv=5, scoring='roc_auc', n_jobs=-1)
+#    cv_score = cross_validation.cross_val_score(model_nb, x_trainb, y_train,
+#        cv=5, scoring='roc_auc', n_jobs=-1)
 #    params = {'alpha':np.arange(0.01, 0.1, 0.01)}
 #    clf = grid_search.GridSearchCV(model_nb, params, scoring='roc_auc', cv=5, 
 #        verbose=3)
 #    clf.fit(x_train, y_train)
     
 #%% model ensemble, auc = 0.9029 (cv=2)
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE']
-    x_train.drop(cols_drop, axis=1, inplace=True)
-    x_test.drop(cols_drop, axis=1, inplace=True)
-    x_trainb, x_testb = create_feat_ben(x_train, x_test)
-    x_train = sparse.hstack((x_train, x_trainb.as_matrix())).toarray()
-    x_test = sparse.hstack((x_test, x_testb.as_matrix())).tocsr()
-    
-
-    SEED = 0
-    models = []
-    models.append(ensemble.RandomForestClassifier(n_estimators=2000, 
-        max_features='sqrt', max_depth=None, min_samples_split=9, 
-        random_state=SEED, verbose=10, n_jobs=-1))#8803
-    models.append(ensemble.ExtraTreesClassifier(n_estimators=2000, 
-        max_features='sqrt', max_depth=None, min_samples_split=8, 
-        random_state=SEED, verbose=10, n_jobs=-1)) #8903
-    models.append(ensemble.GradientBoostingClassifier(n_estimators=50, 
-        learning_rate=0.20, max_depth=20, min_samples_split=9, 
-        random_state=SEED, verbose=10))  #8749
-    
-    y_pred, auc_score = model_ensemble(models, x_train, y_train, x_test, 
-        cv=2, random_state=0)
-    save_submission(y_pred, 'submissionEnsemble.csv')
-    print auc_score
-    
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE']
+#    x_train.drop(cols_drop, axis=1, inplace=True)
+#    x_test.drop(cols_drop, axis=1, inplace=True)
+#    x_trainb, x_testb = create_feat_ben(x_train, x_test)
+#    x_train = sparse.hstack((x_train, x_trainb.as_matrix())).toarray()
+#    x_test = sparse.hstack((x_test, x_testb.as_matrix())).tocsr()
+#    
+#    SEED = 0
+#    models = []
+#    models.append(ensemble.RandomForestClassifier(n_estimators=2000, 
+#        max_features='sqrt', max_depth=None, min_samples_split=9, 
+#        random_state=SEED, verbose=10, n_jobs=-1))#8803
+#    models.append(ensemble.ExtraTreesClassifier(n_estimators=2000, 
+#        max_features='sqrt', max_depth=None, min_samples_split=8, 
+#        random_state=SEED, verbose=10, n_jobs=-1)) #8903
+#    models.append(ensemble.GradientBoostingClassifier(n_estimators=500, 
+#        learning_rate=0.05, max_depth=10, min_samples_split=6, 
+#        random_state=SEED, verbose=10))  #8749
+#    
+#    y_pred = model_ensemble(models, x_train, y_train, x_test, 
+#        cv=4, random_state=0)
+#    save_submission(y_pred, 'submissionEnsemble.csv')
+#    
 #%% xgboost    
 #    xgbmat_train, xgbmat_test = xgb_data(x_train, y_train, x_test)
 #    param = {'booster': 'gblinear',
