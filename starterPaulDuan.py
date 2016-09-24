@@ -294,7 +294,6 @@ def create_feat_ben(Xtrain, Xtest, keep_origin=False):
                         how='left')
                         
     # cross tabulate frequencies
-    N = Xall.shape[0]
     for cols in itertools.combinations(columns, 2):
         grouped = Xall.groupby(by=cols, sort=False).size().apply(lambda x: 
             10.*x/N)
