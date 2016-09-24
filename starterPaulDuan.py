@@ -292,22 +292,47 @@ def create_feat_ben(Xtrain, Xtest, keep_origin=False):
             .agg(lambda x:len(x.unique())).to_frame('resper'+col)
         Xall = pd.merge(Xall, grouped, left_on=col, right_index=True, 
                         how='left')
-                        
+             
     # cross tabulate frequencies
     for cols in itertools.combinations(columns, 2):
         grouped = Xall.groupby(by=cols, sort=False).size().apply(lambda x: 
-            10.*x/N)
+            1.*x/N)
         grouped = grouped.to_frame('crstab'+'+'.join(cols))
         Xall = pd.merge(Xall, grouped, left_on=cols, right_index=True, 
             how='left')
-                        
+            
+    normalizer = preprocessing.StandardScaler()
+    
+    columns = list(Xall.columns)
+    cross_cols = [i for i in columns if i.lower().find('crstab') != -1]    
+#    z = pd.DataFrame()
+    normalizer = preprocessing.StandardScaler()
+    
+    for coli, colj in itertools.combinations(cross_cols, 2):
+        tmp = Xall[coli]*Xall[colj]
+        Xall[coli+'*'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        tmp = Xall[coli]/(1e-9+Xall[colj])
+        Xall[coli+'/'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        tmp = Xall[colj]*Xall[coli]
+        Xall[colj+'*'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        tmp = Xall[colj]/(1e-9+Xall[coli])
+        Xall[colj+'/'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        
+    for col in cross_cols:
+        tmp = Xall[coli]**2
+        Xall['pow2'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        tmp = Xall[coli]**3
+        Xall['pow3'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        tmp = np.log(Xall[coli]+1)
+        Xall['log'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        
     if not keep_origin:
         Xall.drop(columns, axis=1, inplace=True)
     Xtrain = Xall[:Xtrain.shape[0]]
     Xtest = Xall[Xtrain.shape[0]:]
     
     return Xtrain, Xtest
-    
+       
 def cv_predict_proba(clf, X, y, cv=3, random_state=0):
     kf = cross_validation.KFold(X.shape[0], n_folds=cv, shuffle=True, 
         random_state=random_state)
@@ -330,6 +355,7 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
     lg_ = linear_model.LinearRegression(fit_intercept=False, normalize=False,
         copy_X=True)
     lg_.fit(xpred, ytrain)
+    auc_score = metrics.roc_auc_score(y_train, lg_.predict(xpred))
     
     xpred0 = np.zeros((Xtest.shape[0], len(models)*len(np.unique(ytrain))))
     for i, model in enumerate(models):
@@ -338,7 +364,7 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
         xpred0[:, cols] = model.predict_proba(Xtest.toarray())
     ypred = lg_.predict(xpred0)
     
-    return ypred
+    return ypred, auc_score
         
 
 if __name__ == '__main__':
@@ -409,8 +435,9 @@ if __name__ == '__main__':
 #        learning_rate=0.05, max_depth=10, min_samples_split=6, 
 #        random_state=SEED, verbose=10))  #8749
 #    
-#    y_pred = model_ensemble(models, x_train, y_train, x_test, 
+#    y_pred, auc_score = model_ensemble(models, x_train, y_train, x_test, 
 #        cv=4, random_state=0)
+#     print auc_score
 #    save_submission(y_pred, 'submissionEnsemble.csv')
 #    
 #%% xgboost    
