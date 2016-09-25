@@ -28,7 +28,9 @@ import pandas as pd
 import numpy as np
 import itertools
 from scipy import sparse
+import scipy as sp
 import copy
+from functools import partial
 
 #import xgboost as xgb
 from sklearn import (metrics, cross_validation, linear_model, preprocessing)
@@ -173,7 +175,7 @@ def forward_feature_selection(clf, x, y, n_features):
     cols = list(x.columns)
     cols = list(np.random.permutation(cols))
     cols_good = []
-    cols_remain = cols
+    cols_remain = cols[:]
     x_selected_ = []
     score_hist = []
     score_max = 0
@@ -213,6 +215,40 @@ def forward_feature_selection(clf, x, y, n_features):
                 j, col, score_hist[-1][0])
     
     return cols_hist[idx_max]
+
+def random_feature_selection(clf, x, y, random_state=0, n_features=10):
+    """
+    According to Miroslaw's idea
+    x, y are pandas dataframes
+    """
+    cols = list(x.columns)
+    np.random.seed(random_state)
+    cols = list(np.random.permutation(cols))
+    cols_good = []
+    cols_remain = cols[:]
+    x_ = []
+    score_hist = []
+    
+    for i, col in enumerate(cols):
+        encoder = preprocessing.OneHotEncoder()
+        xtmp = np.absolute(x.ix[:,col]).reshape((x.shape[0],1))
+        x_new = encoder.fit_transform(xtmp)
+        x_.append(x_new)
+        x_features = sparse.hstack([j for j in x_]).tocsr()
+        scores_cv = cross_validation.cross_val_score(clf, x_features, y, cv=5, 
+            scoring='roc_auc')
+        score_ = np.median(scores_cv)
+        print 'Feature {}, score {}'.format(i, score_)
+        if (len(score_hist)<n_features or score_>score_hist[-1]):
+            score_hist.append(score_)
+            cols_good.append(col)
+            cols_remain.remove(col)
+        else:
+            x_.pop()
+            score_hist.pop()
+            break
+    
+    return cols_good, score_hist
     
 def one_hot(X, x_train, x_test, cols_good):
     """Encode training and testing data
@@ -368,7 +404,56 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
     ypred = lg_.predict(xpred0)
     
     return ypred, auc_score
+    
+
+class AUCRegressor(object):
+    def __init__(self):
+        self.coef_ = 0
+
+    def _auc_loss(self, coef, X, y):
+        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, np.abs(coef)))
+        return -metrics.auc(fpr, tpr)
+
+    def fit(self, X, y):
+        lr = linear_model.LinearRegression()
+        auc_partial = partial(self._auc_loss, X=X, y=y)
+        initial_coef = lr.fit(X, y).coef_
+        self.coef_ = sp.optimize.fmin(auc_partial, initial_coef)
+
+    def predict(self, X):
+        return sp.dot(X, self.coef_)
+
+    def score(self, X, y):
+        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, self.coef_))
+        return metrics.auc(fpr, tpr)
         
+class MLR(object):
+    def __init__(self):
+        self.coef_ = 0
+
+    def fit(self, X, y):
+        self.coef_ = sp.optimize.nnls(X, y)[0]
+        self.coef_ = np.array(map(lambda x: x/sum(self.coef_), self.coef_))
+
+    def predict(self, X):
+        predictions = np.array(map(sum, self.coef_ * X))
+        return predictions
+
+    def score(self, X, y):
+        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, self.coef_))
+        return metrics.auc(fpr, tpr)
+
+def save_data(file_name, data):
+    """File name must ends with .pkl
+    """
+    with open(file_name, 'wb') as f:
+        pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
+        
+def read_data(file_name):
+    with open(file_name, 'rb') as f:
+        data = pickle.load(f)
+        
+    return data
 
 if __name__ == '__main__':
 #%% average multiple logistic regressino models
@@ -382,27 +467,27 @@ if __name__ == '__main__':
 #    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
 
 #%% feature combination and logistic regression: auc = 0.908
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-
-    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag')
-    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag', max_iter=15)
-
-    cols_pool = []
-    for i in range(10):
-        np.random.seed(i)
-        x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
-            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
-            clf=model_logit2, n_features=40)
-        cols_pool.append(cols_good)
-        cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
-            cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
-        print np.mean(cv_score)    
-        model_logit.fit(x_trainh, y_train)
-        y_pred = model_logit.predict_proba(x_testh)[:,1]
-        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+#
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag')
+#    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag', max_iter=15)
+#
+#    cols_pool = []
+#    for i in range(10):
+#        np.random.seed(i)
+#        x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
+#            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
+#            clf=model_logit2, n_features=40)
+#        cols_pool.append(cols_good)
+#        cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
+#            cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+#        print np.mean(cv_score)    
+#        model_logit.fit(x_trainh, y_train)
+#        y_pred = model_logit.predict_proba(x_testh)[:,1]
+#        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
     
 #%% naive bayes: auc = 0.5
 #    x_train, y_train, x_test, id_test = load_data()
@@ -464,3 +549,61 @@ if __name__ == '__main__':
 #    bst = xgb.train(param, xgbmat_train, res.shape[0])
 #    y_pred = bst.predict(xgbmat_test)
 #    save_submission(y_pred, 'submissionPaulDuanXGB.csv')
+    
+#%% Random feature selection, 10 sets averaged: 0.90577
+    x_train, y_train, x_test, id_test = load_data()
+    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+
+    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+        solver='sag')
+    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+        solver='sag', max_iter=15)
+
+    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
+            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
+    x_trainh = Xall[:x_train.shape[0]]
+
+    cols_pool = []
+    scores_hist = []
+    y_test_pred = []
+    y_train_pred = []
+    N = 20
+    np.random.seed(0)
+    for i in range(N):
+        seed = np.random.randint(10000)
+        cols_good, scores = random_feature_selection(model_logit, x_trainh, 
+            y_train, random_state=seed, n_features=35)
+        cols_pool.append(cols_good)
+        scores_hist.append(scores)
+        x_trains, x_tests = one_hot(Xall, x_train, x_test, cols_good)
+#        cv_score = cross_validation.cross_val_score(model_logit, x_trains, 
+#            y_train, cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+#        print np.mean(cv_score)
+        model_logit.fit(x_trains, y_train)
+        y_pred = model_logit.predict_proba(x_tests)[:,1]
+        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
+        y_test_pred.append(y_pred)
+        y_train0 = model_logit.predict_proba(x_trains)[:,1]
+        y_train_pred.append(y_train0)
+        
+# fit hyperparameters that stacking multiple models, AUCRegressor allows 
+# negetive coefficients and thus not good. MLR is not good because only two 
+# coefficients are nonzero.
+    y_train_pred = np.array(y_train_pred).T
+    y_test_pred = np.array(y_test_pred).T
+    aucr = AUCRegressor()
+    aucr.fit(y_train_pred, y_train)
+    y_pred = aucr.predict(y_test_pred)
+#        
+## average gives best results
+##    y=[]
+##    for i in range(N):
+##        y.append(pd.read_csv('submissionPB_%d.csv'%i)['ACTION'])  
+##    y_pred = y[0]
+##    for i in range(1, N):
+##        y_pred = y_pred+y[i]        
+##    y_pred = y_pred/N
+    
+    save_submission(y_pred, 'submissionPBaverage.csv')
+    
+    save_data('RLRHistory_{}.pkl'.format(N), (cols_pool, scores_hist, N))
