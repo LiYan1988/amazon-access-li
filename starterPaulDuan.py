@@ -19,6 +19,9 @@ Paul's idea:
 2. some simple algorithmic calculation between the cross table features (e.g.,
     division, multiplication, square, cubic, log, normalization...)
 
+SelectFromModel (with LogisticRegression) and RandomizedLogisticRegression 
+are not working, too slow.
+
 """
 
 import pandas as pd
@@ -159,7 +162,7 @@ def group_data(x_train, x_test, y_train, cols_drop=['ROLE_CODE'], max_degree=2,
         
     x_train, x_test = one_hot(X, x_train, x_test, cols_good)        
 
-    return x_train, x_test, cols_good
+    return x_train, x_test, X, cols_good
     
 def forward_feature_selection(clf, x, y, n_features):
     """
@@ -379,23 +382,27 @@ if __name__ == '__main__':
 #    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
 
 #%% feature combination and logistic regression: auc = 0.908
-#    x_train, y_train, x_test, id_test = load_data()
-#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-#
-#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-#        solver='sag')
-#    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
-#        solver='sag', max_iter=15)
-#
-#    x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
-#        cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
-#        clf=model_logit2, n_features=40)
-#    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
-#        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
-#    print np.mean(cv_score)
-#    model_logit.fit(x_trainh, y_train)
-#    y_pred = model_logit.predict_proba(x_testh)[:,1]
-#    save_submission(y_pred, 'submissionPB.csv')
+    x_train, y_train, x_test, id_test = load_data()
+    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+
+    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+        solver='sag')
+    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+        solver='sag', max_iter=15)
+
+    cols_pool = []
+    for i in range(10):
+        np.random.seed(i)
+        x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
+            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
+            clf=model_logit2, n_features=40)
+        cols_pool.append(cols_good)
+        cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
+            cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+        print np.mean(cv_score)    
+        model_logit.fit(x_trainh, y_train)
+        y_pred = model_logit.predict_proba(x_testh)[:,1]
+        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
     
 #%% naive bayes: auc = 0.5
 #    x_train, y_train, x_test, id_test = load_data()
@@ -414,7 +421,7 @@ if __name__ == '__main__':
 #        verbose=3)
 #    clf.fit(x_train, y_train)
     
-#%% model ensemble, auc = 0.9029 (cv=2)
+#%% model ensemble, auc = 0.9068 (cv=4)
 #    x_train, y_train, x_test, id_test = load_data()
 #    cols_drop = ['ROLE_CODE']
 #    x_train.drop(cols_drop, axis=1, inplace=True)

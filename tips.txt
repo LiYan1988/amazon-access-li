@@ -18,4 +18,8 @@ Paul's idea:
 	normalization...)
 3. self-made simple model that minimizes AUC directly, and 
 	simple linear regression model with nonnegative coefficients.
-4. 
+
+Feature selection of grouped data:
+1. RandomizedLogisticRegression doesn't support parallel. This method
+doesn't work well, why? I guess this is due to the one-hot encoding. Discarding one-hot encoded features always causes information loss.
+2. SelectFromModel (with LogisticRegression)
