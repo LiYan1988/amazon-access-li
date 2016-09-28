@@ -471,13 +471,13 @@ if __name__ == '__main__':
 #%% average multiple logistic regressino models
     x_train, y_train, x_test, id_test = load_data()
     cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-    cols_drop = ['ROLE_ROLLUP_1', 'ROLE_ROLLUP_2', 'ROLE_DEPTNAME', 
-    'ROLE_TITLE', 'ROLE_FAMILY_DESC', 'ROLE_CODE', 'RESOURCE']
+#    cols_drop = ['ROLE_ROLLUP_1', 'ROLE_ROLLUP_2', 'ROLE_DEPTNAME', 
+#    'ROLE_TITLE', 'ROLE_FAMILY_DESC', 'ROLE_CODE', 'RESOURCE']
     model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
         n_jobs=-1)
     model_nb = naive_bayes.BernoulliNB(alpha=0.03)
     Y = average_models(x_train, x_test, y_train, cols_drop, [2], 3, 
-                       0, model_nb, model_nb, 10, 20)
+                       0, model_logit, model_logit, 10, 20)
     y_pred = np.mean(Y,1)
     save_submission(y_pred, 'submissionALR.csv')
 
