@@ -297,7 +297,8 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree,
     Y = np.array(Y).T
     return Y
     
-def create_feat_ben(Xtrain, Xtest, keep_origin=False):
+def create_feat_ben(Xtrain, Xtest, keep_origin=False, crstab=False, 
+                    algfeat=False):
     """Create new features using Ben's method
     """
     Xall = pd.concat([Xtrain, Xtest])
@@ -334,37 +335,38 @@ def create_feat_ben(Xtrain, Xtest, keep_origin=False):
                         how='left')
              
     # cross tabulate frequencies
-    for cols in itertools.combinations(columns, 2):
-        grouped = Xall.groupby(by=cols, sort=False).size().apply(lambda x: 
-            1.*x/N)
-        grouped = grouped.to_frame('crstab'+'+'.join(cols))
-        Xall = pd.merge(Xall, grouped, left_on=cols, right_index=True, 
-            how='left')
+    if crstab:
+        for cols in itertools.combinations(columns, 2):
+            grouped = Xall.groupby(by=cols, sort=False).size().apply(lambda x: 
+                1.*x/N)
+            grouped = grouped.to_frame('crstab'+'+'.join(cols))
+            Xall = pd.merge(Xall, grouped, left_on=cols, right_index=True, 
+                how='left')
             
-    normalizer = preprocessing.StandardScaler()
-    
-    columns = list(Xall.columns)
-    cross_cols = [i for i in columns if i.lower().find('crstab') != -1]    
-#    z = pd.DataFrame()
-    normalizer = preprocessing.StandardScaler()
-    
-    for coli, colj in itertools.combinations(cross_cols, 2):
-        tmp = Xall[coli]*Xall[colj]
-        Xall[coli+'*'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
-        tmp = Xall[coli]/(1e-9+Xall[colj])
-        Xall[coli+'/'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
-        tmp = Xall[colj]*Xall[coli]
-        Xall[colj+'*'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
-        tmp = Xall[colj]/(1e-9+Xall[coli])
-        Xall[colj+'/'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
+    if algfeat:
+        normalizer = preprocessing.StandardScaler()
+        columns = list(Xall.columns)
+        cross_cols = [i for i in columns if i.lower().find('crstab') != -1]
+    #    z = pd.DataFrame()
+        normalizer = preprocessing.StandardScaler()
         
-    for col in cross_cols:
-        tmp = Xall[coli]**2
-        Xall['pow2'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
-        tmp = Xall[coli]**3
-        Xall['pow3'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
-        tmp = np.log(Xall[coli]+1)
-        Xall['log'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+        for coli, colj in itertools.combinations(cross_cols, 2):
+            tmp = Xall[coli]*Xall[colj]
+            Xall[coli+'*'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            tmp = Xall[coli]/(1e-9+Xall[colj])
+            Xall[coli+'/'+colj] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            tmp = Xall[colj]*Xall[coli]
+            Xall[colj+'*'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            tmp = Xall[colj]/(1e-9+Xall[coli])
+            Xall[colj+'/'+coli] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            
+        for col in cross_cols:
+            tmp = Xall[coli]**2
+            Xall['pow2'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            tmp = Xall[coli]**3
+            Xall['pow3'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
+            tmp = np.log(Xall[coli]+1)
+            Xall['log'+col] = normalizer.fit_transform(tmp.reshape(-1, 1))
         
     if not keep_origin:
         Xall.drop(columns, axis=1, inplace=True)
@@ -461,34 +463,31 @@ if __name__ == '__main__':
 #    x_train, y_train, x_test, id_test = load_data()
 #    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
 #    cols_drop = ['ROLE_CODE']
-#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0)
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        n_jobs=-1)
 #    Y = average_models(x_train, x_test, y_train, cols_drop, [2,3,4], 3, 
 #                       0, model_logit, model_logit, 20)
 #    y_pred = np.mean(Y,1)
-#    save_submission(y_pred, 'submissionPaulDuanLogit.csv')
+#    save_submission(y_pred, 'submissionALR.csv')
 
 #%% feature combination and logistic regression: auc = 0.908
 #    x_train, y_train, x_test, id_test = load_data()
 #    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
 #
 #    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-#        solver='sag')
+#        solver='sag', n_jobs=-1)
 #    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
-#        solver='sag', max_iter=15)
-#
-#    cols_pool = []
-#    for i in range(10):
-#        np.random.seed(i)
-#        x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
-#            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
-#            clf=model_logit2, n_features=40)
-#        cols_pool.append(cols_good)
-#        cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
-#            cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
-#        print np.mean(cv_score)    
-#        model_logit.fit(x_trainh, y_train)
-#        y_pred = model_logit.predict_proba(x_testh)[:,1]
-#        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
+#        solver='sag', max_iter=15, n_jobs=-1)
+
+#    x_trainh, x_testh, cols_good = group_data(x_train, x_test, y_train, 
+#        cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
+#        clf=model_logit2, n_features=40)
+#    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
+#        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+#    print np.mean(cv_score)    
+#    model_logit.fit(x_trainh, y_train)
+#    y_pred = model_logit.predict_proba(x_testh)[:,1]
+#    save_submission(y_pred, 'submissionLR.csv'.format(i))
     
 #%% naive bayes: auc = 0.5
 #    x_train, y_train, x_test, id_test = load_data()
@@ -552,59 +551,107 @@ if __name__ == '__main__':
 #    save_submission(y_pred, 'submissionPaulDuanXGB.csv')
     
 #%% Random feature selection, 10 sets averaged: 0.90577
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-
-    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag')
-    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag', max_iter=15)
-
-    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
-            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
-    x_trainh = Xall[:x_train.shape[0]]
-
-    cols_pool = []
-    scores_hist = []
-    y_test_pred = []
-    y_train_pred = []
-    N = 20
-    np.random.seed(0)
-    for i in range(N):
-        seed = np.random.randint(10000)
-        cols_good, scores = random_feature_selection(model_logit, x_trainh, 
-            y_train, random_state=seed, n_features=35)
-        cols_pool.append(cols_good)
-        scores_hist.append(scores)
-        x_trains, x_tests = one_hot(Xall, x_train, x_test, cols_good)
-#        cv_score = cross_validation.cross_val_score(model_logit, x_trains, 
-#            y_train, cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
-#        print np.mean(cv_score)
-        model_logit.fit(x_trains, y_train)
-        y_pred = model_logit.predict_proba(x_tests)[:,1]
-        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
-        y_test_pred.append(y_pred)
-        y_train0 = model_logit.predict_proba(x_trains)[:,1]
-        y_train_pred.append(y_train0)
-        
-# fit hyperparameters that stacking multiple models, AUCRegressor allows 
-# negetive coefficients and thus not good. MLR is not good because only two 
-# coefficients are nonzero.
-    y_train_pred = np.array(y_train_pred).T
-    y_test_pred = np.array(y_test_pred).T
-    aucr = AUCRegressor()
-    aucr.fit(y_train_pred, y_train)
-    y_pred = aucr.predict(y_test_pred)
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+#
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag')
+#    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag', max_iter=15)
+#
+#    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
+#            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
+#    x_trainh = Xall[:x_train.shape[0]]
+#
+#    cols_pool = []
+#    scores_hist = []
+#    y_test_pred = []
+#    y_train_pred = []
+#    N = 20
+#    np.random.seed(0)
+#    for i in range(N):
+#        seed = np.random.randint(10000)
+#        cols_good, scores = random_feature_selection(model_logit, x_trainh, 
+#            y_train, random_state=seed, n_features=35)
+#        cols_pool.append(cols_good)
+#        scores_hist.append(scores)
+#        x_trains, x_tests = one_hot(Xall, x_train, x_test, cols_good)
+##        cv_score = cross_validation.cross_val_score(model_logit, x_trains, 
+##            y_train, cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+##        print np.mean(cv_score)
+#        model_logit.fit(x_trains, y_train)
+#        y_pred = model_logit.predict_proba(x_tests)[:,1]
+#        save_submission(y_pred, 'submissionPB_{}.csv'.format(i))
+#        y_test_pred.append(y_pred)
+#        y_train0 = model_logit.predict_proba(x_trains)[:,1]
+#        y_train_pred.append(y_train0)
 #        
-## average gives best results
-##    y=[]
-##    for i in range(N):
-##        y.append(pd.read_csv('submissionPB_%d.csv'%i)['ACTION'])  
-##    y_pred = y[0]
-##    for i in range(1, N):
-##        y_pred = y_pred+y[i]        
-##    y_pred = y_pred/N
+## fit hyperparameters that stacking multiple models, AUCRegressor allows 
+## negetive coefficients and thus not good. MLR is not good because only two 
+## coefficients are nonzero.
+#    y_train_pred = np.array(y_train_pred).T
+#    y_test_pred = np.array(y_test_pred).T
+#    aucr = AUCRegressor()
+#    aucr.fit(y_train_pred, y_train)
+#    y_pred = aucr.predict(y_test_pred)
+##        
+### average gives best results
+###    y=[]
+###    for i in range(N):
+###        y.append(pd.read_csv('submissionPB_%d.csv'%i)['ACTION'])  
+###    y_pred = y[0]
+###    for i in range(1, N):
+###        y_pred = y_pred+y[i]        
+###    y_pred = y_pred/N
+#    
+#    save_submission(y_pred, 'submissionPBaverage.csv')
+#    
+#    save_data('RLRHistory_{}.pkl'.format(N), (cols_pool, scores_hist, N))
     
-    save_submission(y_pred, 'submissionPBaverage.csv')
+#%% Combine grouped data with create_feat_ben, logistic regression
+#    create cross table data sets
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE']
+#    x_trainb, x_testb = create_feat_ben(x_train, x_test, keep_origin=True, 
+#        crstab=True, algfeat=False)
+#    x_testb.to_csv('feat_ben_test.csv')
+#    x_trainb.to_csv('feat_ben_train.csv')
     
-    save_data('RLRHistory_{}.pkl'.format(N), (cols_pool, scores_hist, N))
+#    load cross table data sets
+    x_train, y_train, x_test, id_test = load_data()
+    x_testb = pd.read_csv('feat_ben_test.csv')
+    x_trainb = pd.read_csv('feat_ben_train.csv')
+    SEED=0
+    model_xt = ensemble.ExtraTreesClassifier(n_estimators=2000, 
+        max_features='sqrt', max_depth=None, min_samples_split=8, 
+        random_state=SEED, verbose=10)
+    params = {'n_estimators':[1000,2000, 3000, 4000],
+              'max_depth':[20, 30, 40, 50, 60, None], 
+              'min_samples_split':[3, 9, 15]}
+    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
+        cv=5, n_jobs=8, verbose=10)
+    gridcv.fit(x_trainb, y_train)
+    y_pred = gridcv.predict_proba(x_testb)[:,1]
+    save_submission(y_pred, 'submissionFE.csv')
+#        
+#    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
+#            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
+#    x_trainh = Xall[:x_train.shape[0]]
+#
+#    cols_pool = []
+#    scores_hist = []
+#    y_test_pred = []
+#    y_train_pred = []
+#    N = 20
+#    np.random.seed(0)
+#    for i in range(N):
+#        seed = np.random.randint(10000)
+#        cols_good, scores = random_feature_selection(model_logit, x_trainh, 
+#            y_train, random_state=seed, n_features=35)
+#        cols_pool.append(cols_good)
+#        scores_hist.append(scores)
+#        x_trains, x_tests = one_hot(Xall, x_train, x_test, cols_good)
+##        cv_score = cross_validation.cross_val_score(model_logit, x_trains, 
+##            y_train, cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+##        print np.mean(cv_score)
+#        model_logit.fit(x_trains, y_train)
