@@ -419,11 +419,15 @@ def model_ensemble(models, Xtrain, ytrain, Xtest, cv=3, random_state=0):
     
 
 class AUCRegressor(object):
+    """Use nonlinear optimization to search for the nonnegative stacking 
+    coefficients
+    """
     def __init__(self):
         self.coef_ = 0
 
     def _auc_loss(self, coef, X, y):
-        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, np.abs(coef)))
+        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, coef**2))
+        # fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, np.abs(coef)))
         return -metrics.auc(fpr, tpr)
 
     def fit(self, X, y):
@@ -601,6 +605,7 @@ if __name__ == '__main__':
 ## fit hyperparameters that stacking multiple models, AUCRegressor allows 
 ## negetive coefficients and thus not good. MLR is not good because only two 
 ## coefficients are nonzero.
+## AUCRegressor is modified to allow only nonnegative coefficients now
 #    y_train_pred = np.array(y_train_pred).T
 #    y_test_pred = np.array(y_test_pred).T
 #    aucr = AUCRegressor()
