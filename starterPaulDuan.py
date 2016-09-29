@@ -290,12 +290,12 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree, cut_off,
     
     for i in range(N):
         clf_select0 = copy.deepcopy(clf_select)
-        clf_select0.C = np.random.rand()*3+0.5
+        clf_select0.C = np.random.rand()*2+0.5
         x_train0, x_test0, _, cols_good = \
             group_data(x_train, x_test, y_train, cols_drop=cols_drop, 
-            max_degree=max_degree, cut_off=1, clf=clf_select0, 
+            max_degree=max_degree, cut_off=cut_off, clf=clf_select0, 
             n_features=n_features)
-        scores_cv = cross_validation.cross_val_score(clf_train, x_train0, 
+        scores_cv = cross_validation.cross_val_score(clf_select0, x_train0, 
             y_train, cv=10, verbose=1, scoring='roc_auc')
         
         print('median:',np.median(scores_cv))
@@ -469,6 +469,7 @@ def read_data(file_name):
 
 if __name__ == '__main__':
 #%% average multiple logistic regressino models
+# 2nd group, 10 features, 20 models, 0.90706
     x_train, y_train, x_test, id_test = load_data()
     cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
 #    cols_drop = ['ROLE_ROLLUP_1', 'ROLE_ROLLUP_2', 'ROLE_DEPTNAME', 
@@ -476,8 +477,8 @@ if __name__ == '__main__':
     model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
         n_jobs=-1)
     model_nb = naive_bayes.BernoulliNB(alpha=0.03)
-    Y = average_models(x_train, x_test, y_train, cols_drop, [2], 3, 
-                       0, model_logit, model_logit, 10, 20)
+    Y = average_models(x_train, x_test, y_train, cols_drop, [2, 3, 4], 3, 0, 
+                       model_logit, model_logit, 35, 20)
     y_pred = np.mean(Y,1)
     save_submission(y_pred, 'submissionALR.csv')
 
