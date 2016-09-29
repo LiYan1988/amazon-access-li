@@ -41,7 +41,12 @@ if __name__ == '__main__':
 
 #    {'learning_rate': 0.05, 'max_depth': 10, 'min_samples_split': 6, 
 #    'n_estimators': 500}, 0.8723
-    gridcv = grid_search.GridSearchCV(model_rf, params, scoring='roc_auc', 
+#
+    gridcv = grid_search.GridSearchCV(model_gb, params, scoring='roc_auc', 
         cv=4, n_jobs=-1, verbose=10)
-    gridcv.fit(x_train, y_train)
+    gridcv.fit(x_trainb, y_train)
     save_data('gridSearchGBXT.pkl', gridcv)
+
+    gridcv = read_data('gridSearchGBXT.pkl')
+    y_pred = gridcv.predict_proba(x_testb)[:,1]
+    save_submission(y_pred, 'submissionGBXT.csv')
