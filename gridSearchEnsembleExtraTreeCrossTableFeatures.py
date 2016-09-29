@@ -5,6 +5,7 @@ Created on Fri Sep 23 22:46:57 2016
 Grid search for extra tree with cross table features
 
 XTXT stands for extra tree cross table features
+score: 0.89818
 """
 
 import pandas as pd
@@ -30,7 +31,8 @@ if __name__ == '__main__':
     params = {'n_estimators':[1000, 2000, 3000, 4000],
               'max_depth':[20, 30, 40, 50, 60, None], 
               'min_samples_split':[9, 15]}
+# {'max_depth': 50, 'min_samples_split': 9, 'n_estimators': 3000}: 0.89818
     gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
-        cv=5, n_jobs=8, verbose=10)
+        cv=4, n_jobs=8, verbose=10)
     gridcv.fit(x_trainb, y_train)
     save_data('gridSearchXTXT.pkl', gridcv)
