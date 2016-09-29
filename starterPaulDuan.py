@@ -470,17 +470,17 @@ def read_data(file_name):
 if __name__ == '__main__':
 #%% average multiple logistic regressino models
 # 2nd group, 10 features, 20 models, 0.90706
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-#    cols_drop = ['ROLE_ROLLUP_1', 'ROLE_ROLLUP_2', 'ROLE_DEPTNAME', 
-#    'ROLE_TITLE', 'ROLE_FAMILY_DESC', 'ROLE_CODE', 'RESOURCE']
-    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        n_jobs=-1)
-    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
-    Y = average_models(x_train, x_test, y_train, cols_drop, [2, 3, 4], 3, 0, 
-                       model_logit, model_logit, 35, 20)
-    y_pred = np.mean(Y,1)
-    save_submission(y_pred, 'submissionALR.csv')
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+##    cols_drop = ['ROLE_ROLLUP_1', 'ROLE_ROLLUP_2', 'ROLE_DEPTNAME', 
+##    'ROLE_TITLE', 'ROLE_FAMILY_DESC', 'ROLE_CODE', 'RESOURCE']
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        n_jobs=-1)
+#    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
+#    Y = average_models(x_train, x_test, y_train, cols_drop, [2, 3, 4], 3, 0, 
+#                       model_logit, model_logit, 35, 20)
+#    y_pred = np.mean(Y,1)
+#    save_submission(y_pred, 'submissionALR.csv')
 
 #%% feature combination and logistic regression: auc = 0.908
     x_train, y_train, x_test, id_test = load_data()
@@ -628,23 +628,23 @@ if __name__ == '__main__':
 #        crstab=True, algfeat=False)
 #    x_testb.to_csv('feat_ben_test.csv')
 #    x_trainb.to_csv('feat_ben_train.csv')
-    
-#    load cross table data sets
-#    x_train, y_train, x_test, id_test = load_data()
-#    x_testb = pd.read_csv('feat_ben_test.csv')
-#    x_trainb = pd.read_csv('feat_ben_train.csv')
-#    SEED=0
-#    model_xt = ensemble.ExtraTreesClassifier(n_estimators=2000, 
-#        max_features='sqrt', max_depth=None, min_samples_split=8, 
-#        random_state=SEED, verbose=10)
-#    params = {'n_estimators':[1000,2000, 3000, 4000],
-#              'max_depth':[20, 30, 40, 50, 60, None], 
-#              'min_samples_split':[3, 9, 15]}
-#    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
-#        cv=5, n_jobs=8, verbose=10)
-#    gridcv.fit(x_trainb, y_train)
-#    y_pred = gridcv.predict_proba(x_testb)[:,1]
-#    save_submission(y_pred, 'submissionFE.csv')
+#    
+##    load cross table data sets
+    x_train, y_train, x_test, id_test = load_data()
+    x_testb = pd.read_csv('feat_ben_test.csv')
+    x_trainb = pd.read_csv('feat_ben_train.csv')
+    SEED=0
+    model_xt = ensemble.ExtraTreesClassifier(n_estimators=2000, 
+        max_features='sqrt', max_depth=None, min_samples_split=8, 
+        random_state=SEED, verbose=10)
+    params = {'n_estimators':[1000,2000, 3000, 4000],
+              'max_depth':[20, 30, 40, 50, 60, None], 
+              'min_samples_split':[3, 9, 15]}
+    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
+        cv=5, n_jobs=8, verbose=10)
+    gridcv.fit(x_trainb, y_train)
+    y_pred = gridcv.predict_proba(x_testb)[:,1]
+    save_submission(y_pred, 'submissionFE.csv')
 #        
 #    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
 #            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
