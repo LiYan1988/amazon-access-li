@@ -27,11 +27,16 @@ if __name__ == '__main__':
     model_rf = ensemble.RandomForestClassifier(n_estimators=2000, 
         max_features='sqrt', max_depth=None, min_samples_split=9, 
         random_state=SEED, verbose=10)
-    params = {'n_estimators':[1000, 2000, 3000, 4000],
-              'max_depth':[20, 30, 40, 50, 60], 
-              'min_samples_split':[9, 15]}
-    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
+#    params = {'n_estimators':[1000, 2000, 3000, 4000],
+#              'max_depth':[20, 30, 40, 50, 60], 
+#              'min_samples_split':[9, 15]}
+    params = {'n_estimators':[2000],
+              'max_depth':[10, 20], 
+              'min_samples_split':[6, 9]}
+# {'max_depth': 30, 'min_samples_split': 9, 'n_estimators': 2000}: 0.89868
+    gridcv = grid_search.GridSearchCV(model_rf, params, scoring='roc_auc', 
         cv=5, n_jobs=8, verbose=10)
     gridcv.fit(x_trainb, y_train)
+    save_data('gridSearchRF.pkl', gridcv)
     y_pred = gridcv.predict_proba(x_testb)[:,1]
     save_submission(y_pred, 'submissionRFXT.csv')
