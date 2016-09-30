@@ -182,7 +182,8 @@ def forward_feature_selection(clf, x, y, n_features):
     score_max = 0
     idx_max = 0
     cols_hist = []
-    model = '{}'.format(clf).split('(')[0]
+#    model = '{}'.format(clf).split('(')[0]
+    model = '{}'.format(clf)
     
     try:
         cols_selected = read_data('forward_selected_features_{}_{}.pkl'.\
