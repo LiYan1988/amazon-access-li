@@ -33,15 +33,15 @@ if __name__ == '__main__':
         learning_rate=0.20, max_depth=20, min_samples_split=9, 
         random_state=SEED)
     params = {'n_estimators':[400, 500, 600, 700],
-          'max_depth':[0.01, 0.03, 0.05, 0.1], 
+          'learning_rate':[0.01, 0.03, 0.05, 0.1], 
           'min_samples_split':[6, 9, 15], 'max_depth':[10, 20, 30]}
-#    params = {'n_estimators':[200, 250, 300, 350, 400, 450, 500],
+#    params = {'n_estimators':[200, 300, 400],
 #              'learning_rate':[0.05], 
 #              'max_depth':[10], 'min_samples_split':[6]}
 
-#    {'learning_rate': 0.05, 'max_depth': 10, 'min_samples_split': 6, 
-#    'n_estimators': 500}, 0.8723
-#
+#    {'max_depth': 10, 'min_samples_split': 6, 'n_estimators': 400, 
+#    'learning_rate'}, 0.87737
+
     gridcv = grid_search.GridSearchCV(model_gb, params, scoring='roc_auc', 
         cv=4, n_jobs=-1, verbose=10)
     gridcv.fit(x_trainb, y_train)
