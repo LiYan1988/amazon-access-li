@@ -30,10 +30,12 @@ if __name__ == '__main__':
 #    params = {'n_estimators':[1000, 2000, 3000, 4000],
 #              'max_depth':[20, 30, 40, 50, 60], 
 #              'min_samples_split':[9, 15]}
-    params = {'n_estimators':[2000],
-              'max_depth':[10, 20], 
-              'min_samples_split':[6, 9]}
+    params = {'n_estimators':[2000, 2500, 3000],
+              'max_depth':[30, 35, 40], 
+              'min_samples_split':[3, 6, 9]}
 # {'max_depth': 30, 'min_samples_split': 9, 'n_estimators': 2000}: 0.89868
+# {'max_depth': 20, 'min_samples_split': 6, 'n_estimators': 2000}: 0.89804
+# {'min_samples_split': 3, 'n_estimators': 2000, 'max_depth': 30}: 0.89909
     gridcv = grid_search.GridSearchCV(model_rf, params, scoring='roc_auc', 
         cv=5, n_jobs=8, verbose=10)
     gridcv.fit(x_trainb, y_train)
