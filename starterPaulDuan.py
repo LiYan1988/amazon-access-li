@@ -472,7 +472,7 @@ def read_data(file_name):
         
     return data
 
-if __name__ == '__main__':
+#if __name__ == '__main__':
 #%% average multiple logistic regressino models
 # 2nd group, 10 features, 20 models, 0.90706
 #    x_train, y_train, x_test, id_test = load_data()
@@ -488,23 +488,23 @@ if __name__ == '__main__':
 #    save_submission(y_pred, 'submissionALR.csv')
 
 #%% feature combination and logistic regression: auc = 0.908
-    x_train, y_train, x_test, id_test = load_data()
-    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
-
-    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag', n_jobs=-1)
-    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
-        solver='sag', max_iter=15, n_jobs=-1)
-
-    x_trainh, x_testh, _, cols_good = group_data(x_train, x_test, y_train, 
-        cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
-        clf=model_logit2, n_features=40)
-    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
-        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
-    print np.mean(cv_score)    
-    model_logit.fit(x_trainh, y_train)
-    y_pred = model_logit.predict_proba(x_testh)[:,1]
-    save_submission(y_pred, 'submissionLR.csv')
+#    x_train, y_train, x_test, id_test = load_data()
+#    cols_drop = ['ROLE_CODE','ROLE_ROLLUP_1','ROLE_ROLLUP_2']
+#
+#    model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag', n_jobs=-1)
+#    model_logit2 = linear_model.LogisticRegression(C=2.0, random_state=0, 
+#        solver='sag', max_iter=15, n_jobs=-1)
+#
+#    x_trainh, x_testh, _, cols_good = group_data(x_train, x_test, y_train, 
+#        cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, 
+#        clf=model_logit2, n_features=40)
+#    cv_score = cross_validation.cross_val_score(model_logit, x_trainh, y_train,
+#        cv=5, verbose=3, scoring='roc_auc', n_jobs=-1)
+#    print np.mean(cv_score)    
+#    model_logit.fit(x_trainh, y_train)
+#    y_pred = model_logit.predict_proba(x_testh)[:,1]
+#    save_submission(y_pred, 'submissionLR.csv')
     
 #%% naive bayes: auc = 0.5
 #    x_train, y_train, x_test, id_test = load_data()
@@ -636,22 +636,22 @@ if __name__ == '__main__':
 #    x_trainb.to_csv('feat_ben_train.csv')
 #    
 ##    load cross table data sets
-    x_train, y_train, x_test, id_test = load_data()
-    x_testb = pd.read_csv('feat_ben_test.csv')
-    x_trainb = pd.read_csv('feat_ben_train.csv')
-    SEED=0
-    model_xt = ensemble.ExtraTreesClassifier(n_estimators=2000, 
-        max_features='sqrt', max_depth=None, min_samples_split=8, 
-        random_state=SEED, verbose=10)
-    params = {'n_estimators':[1000,2000, 3000, 4000],
-              'max_depth':[20, 30, 40, 50, 60, None], 
-              'min_samples_split':[3, 9, 15]}
-    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
-        cv=5, n_jobs=8, verbose=10)
-    gridcv.fit(x_trainb, y_train)
-    y_pred = gridcv.predict_proba(x_testb)[:,1]
-    save_submission(y_pred, 'submissionFE.csv')
-#        
+#    x_train, y_train, x_test, id_test = load_data()
+#    x_testb = pd.read_csv('feat_ben_test.csv')
+#    x_trainb = pd.read_csv('feat_ben_train.csv')
+#    SEED=0
+#    model_xt = ensemble.ExtraTreesClassifier(n_estimators=2000, 
+#        max_features='sqrt', max_depth=None, min_samples_split=8, 
+#        random_state=SEED, verbose=10)
+#    params = {'n_estimators':[1000,2000, 3000, 4000],
+#              'max_depth':[20, 30, 40, 50, 60, None], 
+#              'min_samples_split':[3, 9, 15]}
+#    gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
+#        cv=5, n_jobs=8, verbose=10)
+#    gridcv.fit(x_trainb, y_train)
+#    y_pred = gridcv.predict_proba(x_testb)[:,1]
+#    save_submission(y_pred, 'submissionFE.csv')
+##        
 #    x_trainm, x_testm, Xall, _ = group_data(x_train, x_test, y_train, 
 #            cols_drop=cols_drop, max_degree=[2, 3, 4], cut_off=2, clf=None)
 #    x_trainh = Xall[:x_train.shape[0]]
