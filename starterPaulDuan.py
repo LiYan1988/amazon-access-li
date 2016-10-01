@@ -389,8 +389,8 @@ def cv_predict_proba(clf, X, y, cv=3, random_state=0):
         random_state=random_state)
     ypred = np.zeros((X.shape[0], len(np.unique(y))))
     for train_index, test_index in kf:
-        clf.fit(X[train_index,:], y[train_index])
-        ypred[test_index] = clf.predict_proba(X[test_index])
+        clf.fit(X.ix[train_index], y[train_index])
+        ypred[test_index] = clf.predict_proba(X.ix[test_index])
         
     return ypred
     
