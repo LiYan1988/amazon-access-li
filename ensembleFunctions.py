@@ -28,5 +28,5 @@ def cv_fit_predict(model_fit, x_train, x_test, y_train, cv=3, random_state=0):
     cv_score = metrics.roc_auc_score(y_train, y_train_pred[:,1])
     model_fit.fit(x_train, y_train)
     y_test_pred = model_fit.predict_proba(x_test)
-    
+       
     return y_train_pred, y_test_pred, cv_score
