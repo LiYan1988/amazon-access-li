@@ -3,6 +3,9 @@
 Created on Fri Sep 30 23:40:36 2016
 
 @author: lyaa
+
+Forward feature selection using random logistic regression and group 2 and 3
+ features
 """
 
 from starterPaulDuan import *
@@ -12,7 +15,7 @@ x_train, y_train, x_test, id_test = load_data()
 cols_drop = ['ROLE_CODE']
 model_logit = linear_model.LogisticRegression(C=2.0, random_state=0, 
     max_iter=15, n_jobs=-1)
-Y = average_models(x_train, x_test, y_train, cols_drop, [2], 3, 0, 
+Y = average_models(x_train, x_test, y_train, cols_drop, [2, 3], 3, 0, 
     model_logit, 20, 10)
 y_pred = np.mean(Y,1)
-save_submission(y_pred, 'submissionALR.csv')
+save_submission(y_pred, 'submissionALRG23.csv')

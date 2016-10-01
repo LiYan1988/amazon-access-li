@@ -172,6 +172,8 @@ def forward_feature_selection(clf, x, y, n_features):
     According to Miroslaw's idea
     x, y are pandas dataframes
     n_features: maximum number of features selected
+    Note: due to a bug in sklearn, n_jobs must equal 1 in cross_val_score 
+    Current version only support logistic regression
     """
     cols = list(x.columns)
     cols = list(np.random.permutation(cols))
@@ -183,11 +185,12 @@ def forward_feature_selection(clf, x, y, n_features):
     idx_max = 0
     cols_hist = []
 #    model = '{}'.format(clf).split('(')[0]
-    model = '{}'.format(clf)
+#    model = '{}'.format(clf)
     
     try:
-        cols_selected = read_data('forward_selected_features_{}_{}.pkl'.\
-            format(n_features, model))
+        cv_score, cols_selected = read_data(
+            'forward_selected_features{}_C{:.2f}_totalFeature{}.pkl'.\
+            format(n_features, clf.C, len(cols)))
     except IOError:
         for j in range(len(cols)):
             score_ = []
@@ -199,7 +202,7 @@ def forward_feature_selection(clf, x, y, n_features):
                 x_.append(x_new)
                 x_features = sparse.hstack([i for i in x_]).tocsr()
                 scores_cv = cross_validation.cross_val_score(clf, x_features, 
-                    y, cv=5, scoring='roc_auc', n_jobs=-1)
+                    y, cv=5, scoring='roc_auc', n_jobs=1, verbose=0)
                 score_.append((np.median(scores_cv), col, x_new))
     #        print(col,'score:',np.median(scores_cv))
             score_hist.append(sorted(score_)[-1])
@@ -220,8 +223,9 @@ def forward_feature_selection(clf, x, y, n_features):
                 cols_hist.append(cols_good[:])
                 print 'Iteration {}, column {} is selected, score: {}'.format(
                     j, col, score_hist[-1][0])       
-        save_data('forward_selected_features_{}_{}.pkl'.\
-            format(n_features, model), cols_hist[idx_max])
+        save_data('forward_selected_features{}_C{:.2f}_totalFeature{}.pkl'.\
+            format(n_features, clf.C, len(cols)), 
+            (score_max, cols_hist[idx_max]))
         cols_selected = cols_hist[idx_max]
     
     return cols_selected
@@ -271,7 +275,7 @@ def one_hot(X, x_train, x_test, cols_good):
     return x_train, x_test
     
 def average_models(x_train, x_test, y_train, cols_drop, max_degree, cut_off, 
-                   random_state, clf_select, clf_train, n_features, N):
+                   random_state, clf_select, n_features, N):
     """Create multiple models using Miroslaw's idea:
         1. group different features, this is one of the secrets to win
         2. one hot encode
@@ -292,6 +296,7 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree, cut_off,
     for i in range(N):
         clf_select0 = copy.deepcopy(clf_select)
         clf_select0.C = np.random.rand()*2+0.5
+        clf_select0.max_iter = 15
         x_train0, x_test0, _, cols_good = \
             group_data(x_train, x_test, y_train, cols_drop=cols_drop, 
             max_degree=max_degree, cut_off=cut_off, clf=clf_select0, 
@@ -301,8 +306,9 @@ def average_models(x_train, x_test, y_train, cols_drop, max_degree, cut_off,
         
         print('median:',np.median(scores_cv))
         print('std:',np.std(scores_cv))
-        clf_train.fit(x_train0, y_train)
-        y_pred = clf_train.predict_proba(x_test0)[:,1]
+        clf_select0.max_iter = 100
+        clf_select0.fit(x_train0, y_train)
+        y_pred = clf_select0.predict_proba(x_test0)[:,1]
         Y.append(y_pred)
     Y = np.array(Y).T
     return Y
@@ -483,7 +489,7 @@ def read_data(file_name):
 #        n_jobs=-1)
 #    model_nb = naive_bayes.BernoulliNB(alpha=0.03)
 #    Y = average_models(x_train, x_test, y_train, cols_drop, [2, 3, 4], 3, 0, 
-#                       model_logit, model_logit, 35, 20)
+#                       model_logit, 35, 20)
 #    y_pred = np.mean(Y,1)
 #    save_submission(y_pred, 'submissionALR.csv')
 
