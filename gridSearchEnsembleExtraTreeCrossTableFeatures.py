@@ -35,4 +35,5 @@ if __name__ == '__main__':
     gridcv = grid_search.GridSearchCV(model_xt, params, scoring='roc_auc', 
         cv=4, n_jobs=8, verbose=10)
     gridcv.fit(x_trainb, y_train)
-    save_data('gridSearchXTXT.pkl', gridcv)
+    results = gridcv.grid_scores_
+    save_data('gridSearchXTXTResults.pkl', results)
