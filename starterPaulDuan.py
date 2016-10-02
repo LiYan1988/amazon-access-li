@@ -433,7 +433,7 @@ class AUCRegressor(object):
         self.coef_ = 0
 
     def _auc_loss(self, coef, X, y):
-        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, coef**2))
+        fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, coef))
         # fpr, tpr, _ = metrics.roc_curve(y, sp.dot(X, np.abs(coef)))
         return -metrics.auc(fpr, tpr)
 
