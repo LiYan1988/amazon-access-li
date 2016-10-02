@@ -4,6 +4,8 @@ Created on Sun Oct 02 19:11:38 2016
 
 @author: hyttring
 line 34, 0.895, AUCR: 0.91598
+line 26,27 -8, line 34 0.8947, AUCR: 0.91617
+line 26,27 -10, line 34 0.8947, AUCR: 0.91617
 """
 
 from starterPaulDuan import *
@@ -22,8 +24,8 @@ for i, f in enumerate(file_names):
     scores.append(s)    
 
 idxsort = list(np.argsort(scores)[::-1])
-x_train_pred = [x_train_pred[i] for i in idxsort[:-12]]
-x_test_pred = [x_test_pred[i] for i in idxsort[:-12]]
+x_train_pred = [x_train_pred[i] for i in idxsort[:-10]]
+x_test_pred = [x_test_pred[i] for i in idxsort[:-10]]
 #x_train_pred = np.array(x_train_pred).T
 #x_test_pred = np.array(x_test_pred).T
 
@@ -31,7 +33,7 @@ x_test_pred = [x_test_pred[i] for i in idxsort[:-12]]
 file_names = glob.glob('fitPredictLR_*.pkl')
 for i, f in enumerate(file_names):
     t1, t2, s = read_data(f)
-    if s>0.897:
+    if s>0.8947:
         x_train_pred.append(t1[:, 1])
         x_test_pred.append(t2[:,1])
         scores.append(s)

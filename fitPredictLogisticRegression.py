@@ -60,7 +60,7 @@ if __name__=='__main__':
     for j, feature in enumerate(features):
         model_logit.C = C[j]
         model_logit.verbose = 0
-        model_logit.tol = 1e-6
+        model_logit.tol = 1e-4
         encorder = preprocessing.OneHotEncoder()
         x_ = []
         for f in feature:
